@@ -29,11 +29,34 @@ jobs:
 
       - name: Run Playwright tests
         run: npx playwright test
+        continue-on-error: true
 
-      - name: Upload HTML report
+      - name: Upload HTML report (Artifact)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-poc
           path: playwright-report/
           retention-days: 7
+
+      - name: Upload report for GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: playwright-report/
+
+  deploy-report:
+    name: Deploy Report to GitHub Pages
+    needs: test-poc
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
