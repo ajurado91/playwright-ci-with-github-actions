@@ -1,0 +1,11 @@
+{
+  "name": "09-poc-pipeline",
+  "version": "1.0.0",
+  "description": "POC simple para probar Playwright + GitHub Actions",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}
