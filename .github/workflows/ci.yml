@@ -1,0 +1,264 @@
+name: Playwright CI - Todas las Etapas
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Permite ejecutar manualmente desde la UI de GitHub
+
+jobs:
+  run_basic_ci:
+    name: 02 - Basic CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./02-basic-ci
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=html
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-basic-ci
+          path: 02-basic-ci/playwright-report/
+          retention-days: 7
+
+  run_ci_with_cache:
+    name: 03 - CI with Cache
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./03-with-cache
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'  # setup-node cachea npm automáticamente
+          cache-dependency-path: '03-with-cache/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('03-with-cache/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps
+
+      - name: Install Playwright dependencies only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=html
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-with-cache
+          path: 03-with-cache/playwright-report/
+          retention-days: 7
+
+  run_ci_with_docker:
+    name: 04 - CI with Docker
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.40.0-jammy
+    defaults:
+      run:
+        working-directory: ./04-with-docker
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=html
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-with-docker
+          path: 04-with-docker/playwright-report/
+          retention-days: 7
+
+  run_final_pipeline:
+    name: 05 - Final Pipeline with Reports
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.40.0-jammy
+    defaults:
+      run:
+        working-directory: ./05-final-pipeline
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Playwright tests with HTML report
+        run: npx playwright test --reporter=html
+        continue-on-error: true
+
+      - name: Upload HTML report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-final
+          path: 05-final-pipeline/playwright-report/
+          retention-days: 30
+
+      - name: Upload report for GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 05-final-pipeline/playwright-report/
+
+  run_matrix_browsers:
+    name: 06 - Matrix Strategy (Browsers)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+    defaults:
+      run:
+        working-directory: ./06-matrix-browsers
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: '06-matrix-browsers/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests on ${{ matrix.browser }}
+        run: npx playwright test --project=${{ matrix.browser }} --reporter=html
+
+      - name: Upload HTML report (${{ matrix.browser }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: 06-matrix-browsers/playwright-report/
+          retention-days: 7
+
+  run_parallel_workers:
+    name: 07 - Parallel Workers Demo
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./07-parallel-workers
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: '07-parallel-workers/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run tests with 2 workers (CI optimized)
+        run: npx playwright test --workers=2 --reporter=html
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-parallel-workers
+          path: 07-parallel-workers/playwright-report/
+          retention-days: 7
+
+  run_api_testing:
+    name: 08 - API Testing with Traces
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./08-api-testing
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: '08-api-testing/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run API tests with HTML report
+        run: npx playwright test --reporter=html
+
+      - name: Upload HTML report with traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-api-testing
+          path: 08-api-testing/playwright-report/
+          retention-days: 7
+
+  deploy_report:
+    name: Deploy Report to GitHub Pages
+    needs: run_final_pipeline
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
